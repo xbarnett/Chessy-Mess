@@ -6,8 +6,10 @@ import "package:provider/provider.dart";
 
 class State extends ChangeNotifier {
   (int, int)? _hoverSquare;
+  (int, int)? _selectSquare;
 
   (int, int)? get hoverSquare => _hoverSquare;
+  (int, int)? get selectSquare => _selectSquare;
 
   void hoverEnter((int, int) p) {
     _hoverSquare = p;
@@ -16,6 +18,18 @@ class State extends ChangeNotifier {
 
   void hoverExit() {
     _hoverSquare = null;
+    notifyListeners();
+  }
+
+  void click((int, int) p) {
+    if (_selectSquare == null) {
+      _selectSquare = p;
+    } else {
+      if (p != _selectSquare) {
+        print("move from $_selectSquare to $p");
+      }
+      _selectSquare = null;
+    }
     notifyListeners();
   }
 }
@@ -183,53 +197,64 @@ class BoardSquare extends StatelessWidget {
       required this.color
   });
 
+  Color realColor((int, int)? hoverSquare, (int, int)? selectSquare) {
+    if (coordinate == selectSquare) {
+      return Colors.brown;
+    } else if (coordinate == hoverSquare) {
+      return Colors.yellow;
+    } else {
+      return switch (color) {
+        SquareColor.white => const Color(0xFFFFCC9C),
+        SquareColor.black => const Color(0xFFD88C44),
+      };
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     State state = context.watch<State>();
 
-    return MouseRegion(
-      onEnter: (_) => state.hoverEnter(coordinate),
-      onExit: (_) => state.hoverExit(),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Container(
-            width: size,
-            height: size,
-            color: switch ((color, state.hoverSquare == coordinate)) {
-              (SquareColor.white, false) => const Color(0xFFFFCC9C),
-              (SquareColor.white, true) => Colors.yellow,
-              (SquareColor.black, false) => const Color(0xFFD88C44),
-              (SquareColor.black, true) => Colors.yellow,
-            },
-          ),
-          if (piece != null)
-          SvgPicture.asset(
-            "assets/${piece!.name}.svg",
-            colorFilter: switch (piece!.color) {
-              PieceColor.red => const ColorFilter.matrix([
-                1/3, 1/3, 1/3, 0, 0,
-                  0,   0,   0, 0, 0,
-                  0,   0,   0, 0, 0,
-                  0,   0,   0, 1, 0,
-              ]),
-              PieceColor.blue => const ColorFilter.matrix([
-                  0,   0,   0, 0, 0,
-                  0,   0,   0, 0, 0,
-                1/3, 1/3, 1/3, 0, 0,
-                  0,   0,   0, 1, 0,
-              ]),
-              PieceColor.grey => const ColorFilter.matrix([
-                1/2,   0,   0, 0, 0,
-                0,   1/2,   0, 0, 0,
-                0,     0, 1/2, 0, 0,
-                0,     0,   0, 1, 0,
-              ]),
-            },
-            width: size,
-            height: size,
-          ),
-        ],
+    return GestureDetector(
+      onTap: () => state.click(coordinate),
+      child: MouseRegion(
+        onEnter: (_) => state.hoverEnter(coordinate),
+        onExit: (_) => state.hoverExit(),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Container(
+              width: size,
+              height: size,
+              color: realColor(state.hoverSquare, state.selectSquare)
+            ),
+            if (piece != null)
+            SvgPicture.asset(
+              "assets/${piece!.name}.svg",
+              colorFilter: switch (piece!.color) {
+                PieceColor.red => const ColorFilter.matrix([
+                  1/3, 1/3, 1/3, 0, 0,
+                    0,   0,   0, 0, 0,
+                    0,   0,   0, 0, 0,
+                    0,   0,   0, 1, 0,
+                ]),
+                PieceColor.blue => const ColorFilter.matrix([
+                    0,   0,   0, 0, 0,
+                    0,   0,   0, 0, 0,
+                  1/3, 1/3, 1/3, 0, 0,
+                    0,   0,   0, 1, 0,
+                ]),
+                PieceColor.grey => const ColorFilter.matrix([
+                  1/2,   0,   0, 0, 0,
+                  0,   1/2,   0, 0, 0,
+                  0,     0, 1/2, 0, 0,
+                  0,     0,   0, 1, 0,
+                ]),
+              },
+              width: size,
+              height: size,
+            ),
+          ],
+        ),
       ),
     );
   }
