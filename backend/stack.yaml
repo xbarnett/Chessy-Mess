@@ -53,7 +53,7 @@ packages:
 #
 # Require a specific version of Stack, using version ranges
 # require-stack-version: -any # Default
-# require-stack-version: ">=2.11"
+# require-stack-version: ">=2.9"
 #
 # Override the architecture used by Stack, especially useful on Windows
 # arch: i386

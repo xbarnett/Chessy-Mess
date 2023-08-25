@@ -3,13 +3,51 @@ import "package:flutter_svg/flutter_svg.dart";
 import "package:flutter/material.dart";
 import "package:flutter/services.dart";
 import "package:provider/provider.dart";
+import "package:web_socket_channel/web_socket_channel.dart";
 
 class State extends ChangeNotifier {
+  final WebSocketChannel _channel;
+
   (int, int)? _hoverSquare;
   (int, int)? _selectSquare;
-
   (int, int)? get hoverSquare => _hoverSquare;
   (int, int)? get selectSquare => _selectSquare;
+
+  final int _x1 = -4;
+  final int _y1 = -4;
+  final int _x2 = 4;
+  final int _y2 = 4;
+  int get x1 => _x1;
+  int get y1 => _y1;
+  int get x2 => _x2;
+  int get y2 => _y2;
+
+  GameState? _game;
+  GameState? get game => _game;
+
+  State() : _channel =
+      WebSocketChannel.connect( Uri.parse("ws://localhost:8000")) {
+    requestGame();
+    processResponses();
+  }
+
+  void requestGame() async {
+    Map<String, dynamic> request = {
+      "request": "get state",
+      "x1": x1,
+      "y1": y1,
+      "x2": x2,
+      "y2": y2,
+    };
+    _channel.sink.add(request.toString());
+  }
+
+  void processResponses() async {
+    await for (String s in _channel.stream) {
+      // do stuff with s
+      notifyListeners();
+    }
+  }
 
   void hoverEnter((int, int) p) {
     _hoverSquare = p;
@@ -32,6 +70,9 @@ class State extends ChangeNotifier {
     }
     notifyListeners();
   }
+}
+
+class GameState {
 }
 
 abstract class Piece {
@@ -108,6 +149,8 @@ class Home extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    State state = context.watch<State>();
+
     return Focus(
       autofocus: true,
       onKeyEvent: (_, event) {
@@ -123,9 +166,15 @@ class Home extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Board(
-                  size: 8,
-                ),
+                if (state.game == null)
+                Text(
+                  "Waiting for connection...",
+                  style: const TextStyle(
+                    fontSize: 32.0,
+                  )
+                )
+                else
+                Board(size: 8),
               ],
             ),
           ),

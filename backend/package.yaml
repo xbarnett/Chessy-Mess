@@ -24,6 +24,8 @@ dependencies:
 - containers
 - text
 - websockets
+- aeson
+- bytestring
 
 ghc-options:
 - -Wall
