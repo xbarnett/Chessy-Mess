@@ -1,7 +1,8 @@
 module Main (main) where
 
 import qualified Data.Map.Strict as M
-import Distribution.Simple.InstallDirs (InstallDirs(docdir))
+import qualified Data.Text.Lazy as T
+import qualified Network.WebSockets as N
 
 data PieceType = Pawn | Rook | Knight | Bishop | Queen | King
 
@@ -97,5 +98,7 @@ game s = do
 
 main :: IO ()
 main = do
-  game initialState
-  return ()
+  putStrLn "hi there!"
+  N.runServer "localhost" 8000 $ \pc -> do
+    c <- N.acceptRequest pc
+    N.sendTextData c (T.pack "hello from mr server")
