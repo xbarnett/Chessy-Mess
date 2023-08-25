@@ -5,6 +5,19 @@ import "package:flutter/services.dart";
 import "package:provider/provider.dart";
 
 class State extends ChangeNotifier {
+  (int, int)? _hoverSquare;
+
+  (int, int)? get hoverSquare => _hoverSquare;
+
+  void hoverEnter((int, int) p) {
+    _hoverSquare = p;
+    notifyListeners();
+  }
+
+  void hoverExit() {
+    _hoverSquare = null;
+    notifyListeners();
+  }
 }
 
 abstract class Piece {
@@ -99,7 +112,7 @@ class Home extends StatelessWidget {
                 Board(
                   size: 8,
                 ),
-              ]
+              ],
             ),
           ),
         ),
@@ -140,12 +153,16 @@ class Board extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Table(
+      border: TableBorder.all(
+        width: 1.0,
+      ),
       defaultColumnWidth: const FixedColumnWidth(BoardSquare.size),
       children: List.generate(size, (i) =>
         TableRow(children: List.generate(size, (j) =>
           BoardSquare(
             piece: pieces[(j, size - 1 - i)],
             color: [SquareColor.white, SquareColor.black][(i + j) % 2],
+            coordinate: (j, size - 1 - i),
           )
         )
       )),
@@ -154,54 +171,74 @@ class Board extends StatelessWidget {
 }
 
 class BoardSquare extends StatelessWidget {
-  static const double size = 100.0;
+  static const double size = 75.0;
   final Piece? piece;
   final SquareColor color;
+  final (int, int) coordinate;
 
-  const BoardSquare({super.key, required this.piece, required this.color});
+  const BoardSquare({
+      super.key,
+      required this.coordinate,
+      required this.piece,
+      required this.color
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        Container(
-          width: size,
-          height: size,
-          color: color.toColor(),
-        ),
-        if (piece != null)
-        SvgPicture.asset(
-          "assets/${piece!.name}.svg",
-          colorFilter: ColorFilter.mode(
-            piece!.color.toColor(), BlendMode.modulate),
-          width: size,
-          height: size,
-        ),
-      ],
+    State state = context.watch<State>();
+
+    return MouseRegion(
+      onEnter: (_) => state.hoverEnter(coordinate),
+      onExit: (_) => state.hoverExit(),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: size,
+            height: size,
+            color: switch ((color, state.hoverSquare == coordinate)) {
+              (SquareColor.white, false) => const Color(0xFFFFCC9C),
+              (SquareColor.white, true) => Colors.yellow,
+              (SquareColor.black, false) => const Color(0xFFD88C44),
+              (SquareColor.black, true) => Colors.yellow,
+            },
+          ),
+          if (piece != null)
+          SvgPicture.asset(
+            "assets/${piece!.name}.svg",
+            colorFilter: switch (piece!.color) {
+              PieceColor.red => const ColorFilter.matrix([
+                1/3, 1/3, 1/3, 0, 0,
+                  0,   0,   0, 0, 0,
+                  0,   0,   0, 0, 0,
+                  0,   0,   0, 1, 0,
+              ]),
+              PieceColor.blue => const ColorFilter.matrix([
+                  0,   0,   0, 0, 0,
+                  0,   0,   0, 0, 0,
+                1/3, 1/3, 1/3, 0, 0,
+                  0,   0,   0, 1, 0,
+              ]),
+              PieceColor.grey => const ColorFilter.matrix([
+                1/2,   0,   0, 0, 0,
+                0,   1/2,   0, 0, 0,
+                0,     0, 1/2, 0, 0,
+                0,     0,   0, 1, 0,
+              ]),
+            },
+            width: size,
+            height: size,
+          ),
+        ],
+      ),
     );
   }
 }
 
 enum SquareColor {
   white, black;
-
-  Color toColor() {
-    return switch(this) {
-      white => Colors.white,
-      black => Colors.black,
-    };
-  }
 }
 
 enum PieceColor {
   red, blue, grey;
-
-  Color toColor() {
-    return switch(this) {
-      red => Colors.red,
-      blue => Colors.blue,
-      grey => Colors.grey,
-    };
-  }
 }
