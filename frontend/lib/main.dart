@@ -13,14 +13,14 @@ class State extends ChangeNotifier {
   (int, int)? get hoverSquare => _hoverSquare;
   (int, int)? get selectSquare => _selectSquare;
 
-  final int _x1 = -4;
-  final int _y1 = -4;
-  final int _x2 = 4;
-  final int _y2 = 4;
-  int get x1 => _x1;
-  int get y1 => _y1;
-  int get x2 => _x2;
-  int get y2 => _y2;
+  final BigInt _x1 = BigInt.from(-4);
+  final BigInt _y1 = BigInt.from(-4);
+  final BigInt _x2 = BigInt.from(4);
+  final BigInt _y2 = BigInt.from(4);
+  BigInt get x1 => _x1;
+  BigInt get y1 => _y1;
+  BigInt get x2 => _x2;
+  BigInt get y2 => _y2;
 
   GameState? _game;
   GameState? get game => _game;
