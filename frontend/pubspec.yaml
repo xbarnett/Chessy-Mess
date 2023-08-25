@@ -4,6 +4,10 @@ dependencies:
 
   provider:
 
+  fast_immutable_collections:
+
+  flutter_svg:
+
 dev_dependencies:
   flutter_lints:
 
@@ -14,8 +18,11 @@ environment:
   sdk: ^3.1.0
 
 flutter:
+  assets:
+    - assets/
+
   uses-material-design: true
 
-name: ChessyMess
+name: chessy_mess
 
 publish_to: none
