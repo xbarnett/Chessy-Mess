@@ -2,10 +2,17 @@
 
 module Main (main) where
 
-import GHC.Generics
+import Control.Concurrent.MVar
+import Control.Exception
 import qualified Data.Aeson as J
+import qualified Data.ByteString.Lazy as BS
+import qualified Data.Char as C
 import qualified Data.Map.Strict as M
+import qualified Data.Text.Lazy as T
+import qualified Data.Text.Lazy.Encoding as T
+import GHC.Generics
 import qualified Network.WebSockets as N
+import qualified Network.WebSockets.Connection as N
 
 data PieceType = Pawn | Rook | Knight | Bishop | Queen | King
   deriving (Generic, Show, Eq)
@@ -77,28 +84,10 @@ instance J.ToJSON Move where
 
 instance J.FromJSON Move where
 
-data Request = RequestMove Move |
-  RequestAttacking (Integer, Integer) (Integer, Integer) (Integer, Integer)
-  | RequestState {
-  x1 :: Integer,
-  y1 :: Integer,
-  x2 :: Integer,
-  y2 :: Integer
-} deriving (Generic, Show)
-
 instance J.ToJSON Request where
   toEncoding = J.genericToEncoding J.defaultOptions
 
 instance J.FromJSON Request
-
-data Response = ResponseInvalid |
-  ResponseAttacking [(Integer, Integer)] | ResponseState {
-  player :: Player,
-  xdim :: Integer,
-  ydim :: Integer,
-  pieces :: [[Maybe Piece]],
-  hasWon :: Maybe Player
-} deriving (Generic, Show)
 
 listAttacking :: State -> (Integer, Integer) -> (Integer, Integer) ->
   (Integer, Integer) -> Response
@@ -234,7 +223,7 @@ winnerOfGame s = case filter isRedKing (M.elems (specifics s)) of
 
 getRect :: State -> (Integer, Integer) -> (Integer, Integer) -> Response
 getRect s (x1, y1) (x2, y2) = if
-  (1 <= x2 - x1 && x2 - x1 <= 64 && 1 <= y2 - y1 && y2 - y1 <= 64)
+  (1 <= x2 - x1 && x2 - x1 <= 40 && 1 <= y2 - y1 && y2 - y1 <= 40)
   then ResponseState {
     player = (case winnerOfGame s of
       Nothing -> toMove s
@@ -246,21 +235,125 @@ getRect s (x1, y1) (x2, y2) = if
   }
   else ResponseInvalid
 
+data Client = Client {
+  connection :: N.Connection,
+  clientName :: Maybe String
+}
+
+data Game = Game {
+  red :: Client,
+  redTime :: Int,
+  blue :: Client,
+  blueTime :: Int,
+  gameState :: State
+}
+
+data ServerState = ServerState {
+  namedClients :: M.Map String Client,
+  games :: [Game]
+}
+
+allNames :: ServerState -> [String]
+allNames state = concatMap (fromName . clientName) (namedClients state) where
+  fromName (Just s) = [s]
+  fromName Nothing = []
+
+data Request = RequestMove Move | RequestName String |
+  RequestAttacking (Integer, Integer) (Integer, Integer) (Integer, Integer) |
+  RequestStartGame String
+  | RequestState {
+  x1 :: Integer,
+  y1 :: Integer,
+  x2 :: Integer,
+  y2 :: Integer
+} deriving (Generic, Show)
+
+data Response = ResponseHello String [String] | ResponseInvalid |
+  ResponseInvalidName |
+  ResponseAttacking [(Integer, Integer)] | ResponseState {
+  player :: Player,
+  xdim :: Integer,
+  ydim :: Integer,
+  pieces :: [[Maybe Piece]],
+  hasWon :: Maybe Player
+} deriving (Generic, Show)
+
+isValidName :: Client -> ServerState -> String -> Bool
+isValidName client state s = clientName client == Nothing &&
+  not (elem s (allNames state)) &&
+  all (\c -> C.isAsciiLower c || C.isAsciiUpper c) s &&
+  1 <= length s && length s <= 32
+
+sendNames :: ServerState -> IO ()
+sendNames s = sequence_ [sendTo c | c <- M.elems (namedClients s)] where
+  sendTo c = case clientName c of
+    Nothing -> return ()
+    Just name -> N.sendTextData (connection c)
+      (J.encode (ResponseHello name (allNames s)))
+
+clientLoop :: MVar ServerState -> Client -> IO ()
+clientLoop state client = do
+  putStrLn "loopin"
+  m <- getMessage state client
+  putStrLn "received:"
+  putStrLn (T.unpack (T.decodeUtf8 m))
+  curState <- readMVar state
+  case J.decode m of
+    Nothing -> do
+      N.sendTextData (connection client) (J.encode ResponseInvalid)
+      clientLoop state client
+    Just (RequestName s) -> if isValidName client curState s then
+      do
+        let newClient = Client {connection = connection client,
+                                clientName = Just s}
+        modifyMVar_ state $ \serverState -> return $
+          serverState {namedClients =
+                       M.insert s newClient (namedClients serverState)}
+        serverState <- readMVar state
+        sendNames serverState
+        clientLoop state newClient
+      else do
+        N.sendTextData (connection client) (J.encode ResponseInvalidName)
+        clientLoop state client
+    Just _ -> do
+      N.sendTextData (connection client) (J.encode ResponseInvalid)
+      clientLoop state client
+
+getMessage :: MVar ServerState -> Client -> IO (BS.ByteString)
+getMessage state client = catch
+  (N.receiveDataMessage (connection client) >>=
+   (return . N.fromDataMessage)) handler where
+  handler :: N.ConnectionException -> IO (BS.ByteString)
+  handler _ = do
+    case (clientName client) of
+      Nothing -> return ()
+      Just name -> do
+        modifyMVar_ state $ \serverState -> return $
+          serverState {namedClients = M.delete name (namedClients serverState)}
+        serverState <- readMVar state
+        sendNames serverState
+    return BS.empty
+
+main :: IO ()
+main = do
+  --putStrLn ((T.unpack . T.decodeUtf8) (J.encode (RequestName "Steve")))
+  putStrLn "server started"
+  state <- newMVar (ServerState {namedClients = M.empty, games = []})
+  N.runServer "localhost" 8000 $ \pc -> do
+    c <- N.acceptRequest pc
+    clientLoop state (Client {connection = c, clientName = Nothing})
+
+
+{-
 handleClient :: N.Connection -> State -> IO ()
 handleClient c state = do
   m <- N.receive c
-  putStrLn "received:"
-  print m
-  putStrLn ""
   case m of
     N.DataMessage _ _ _ (N.Text s _) -> do
       case J.decode s of
         Nothing -> handleClient c state
         Just (RequestState x1 y1 x2 y2) -> do
           let r = N.Text (J.encode (getRect state (x1, y1) (x2, y2))) Nothing
-          putStrLn "sent:"
-          print r
-          putStrLn ""
           N.sendDataMessage c r
           handleClient c state
         Just (RequestMove move) -> case makeMove state move of
@@ -268,9 +361,6 @@ handleClient c state = do
           Just state2 -> handleClient c state2
         Just (RequestAttacking p p1 p2) -> do
           let r = N.Text (J.encode (listAttacking state p p1 p2)) Nothing
-          putStrLn "sent lmao:"
-          print r
-          putStrLn ""
           N.sendDataMessage c r
           handleClient c state
     _ -> handleClient c state
@@ -281,3 +371,4 @@ main = do
   N.runServer "localhost" 8000 $ \pc -> do
     c <- N.acceptRequest pc
     handleClient c initialState
+-}

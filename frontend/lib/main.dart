@@ -6,6 +6,14 @@ import "package:provider/provider.dart";
 import "package:web_socket_channel/web_socket_channel.dart";
 
 class State extends ChangeNotifier {
+  final bool landing = true;
+  List<String> _names = [];
+  List<String> get names => _names;
+  String? _name;
+  String? get name => _name;
+
+  final nameBuffer = TextEditingController();
+
   final WebSocketChannel _channel;
 
   (BigInt, BigInt)? _hoverSquare;
@@ -13,10 +21,13 @@ class State extends ChangeNotifier {
   (BigInt, BigInt)? get hoverSquare => _hoverSquare;
   (BigInt, BigInt)? get selectSquare => _selectSquare;
 
-  BigInt _x1 = BigInt.from(-5);
-  BigInt _y1 = BigInt.from(-5);
-  BigInt _x2 = BigInt.from(5);
-  BigInt _y2 = BigInt.from(5);
+  int _scale = 4;
+  int get scale => _scale;
+
+  BigInt _x1 = BigInt.from(0);
+  BigInt _y1 = BigInt.from(0);
+  BigInt _x2 = BigInt.from(0);
+  BigInt _y2 = BigInt.from(0);
   BigInt get x1 => _x1;
   BigInt get y1 => _y1;
   BigInt get x2 => _x2;
@@ -27,6 +38,40 @@ class State extends ChangeNotifier {
 
   List<(BigInt, BigInt)> _underAttack = [];
   List<(BigInt, BigInt)> get underAttack => _underAttack;
+
+  void requestName() {
+    Map<String, dynamic> request = {
+      "\"tag\"": "\"RequestName\"",
+      "\"contents\"": "\"${nameBuffer.text}\"",
+    };
+    print("sending:");
+    print(request.toString());
+    _channel.sink.add(request.toString());
+  }
+
+  void zoomOut() {
+    if (scale < 16) {
+      _x1 -= BigInt.from(scale);
+      _y1 -= BigInt.from(scale);
+      _x2 += BigInt.from(scale);
+      _y2 += BigInt.from(scale);
+      _scale *= 2;
+    }
+    requestGame();
+    requestAttacking();
+  }
+
+  void zoomIn() {
+    if (scale > 2) {
+      _x1 += BigInt.from(scale ~/ 2);
+      _y1 += BigInt.from(scale ~/ 2);
+      _x2 -= BigInt.from(scale ~/ 2);
+      _y2 -= BigInt.from(scale ~/ 2);
+      _scale ~/= 2;
+    }
+    requestGame();
+    requestAttacking();
+  }
 
   void scrollRight() {
     _x1 += BigInt.from(1);
@@ -57,7 +102,10 @@ class State extends ChangeNotifier {
 
   State() : _channel =
       WebSocketChannel.connect(Uri.parse("ws://localhost:8000")) {
-    requestGame();
+    _x1 = BigInt.from(-scale);
+    _y1 = BigInt.from(-scale);
+    _x2 = BigInt.from(scale);
+    _y2 = BigInt.from(scale);
     processResponses();
   }
 
@@ -90,6 +138,8 @@ class State extends ChangeNotifier {
 
   void processResponses() async {
     await for (String s in _channel.stream) {
+      print("received");
+      print(s);
       Map<String, dynamic> json = jsonDecode(s);
       if (json["tag"] == "ResponseState") {
         _game = GameState.fromJson(json);
@@ -99,6 +149,12 @@ class State extends ChangeNotifier {
             BigInt.from(json["contents"][i][0]),
             BigInt.from(json["contents"][i][1]),
           )
+        );
+        notifyListeners();
+      } else if (json["tag"] == "ResponseHello") {
+        _name = json["contents"][0];
+        _names = List.generate(json["contents"][1].length, (i) =>
+          json["contents"][1][i],
         );
         notifyListeners();
       }
@@ -271,11 +327,95 @@ class App extends StatelessWidget {
   const App({super.key});
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-    home: const Home(),
-    theme: ThemeData.dark(useMaterial3: true),
-    title: "Chessy Mess!",
-  );
+  Widget build(BuildContext context) {
+    State state = context.watch<State>();
+
+    return MaterialApp(
+      home: const Landing(),
+      theme: ThemeData.dark(useMaterial3: true),
+      title: "Chessy Mess!",
+    );
+  }
+}
+
+class Landing extends StatelessWidget {
+  const Landing({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    State state = context.watch<State>();
+
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (state.name == null)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    constraints: const BoxConstraints(
+                      maxWidth: 200.0,
+                    ),
+                    child: TextField(
+                      controller: state.nameBuffer,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        hintText: "Enter your name"
+                      ),
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: state.requestName,
+                    child: const Text("enter")
+                  )
+                ],
+              )
+              else if (state.names.length >= 2)
+              const Text(
+                "Choose who to play:",
+                style: TextStyle(
+                  fontSize: 32.0,
+                )
+              )
+              else
+              const Text(
+                "No players yet!",
+                style: TextStyle(
+                  fontSize: 32.0,
+                )
+              ),
+              for (String name in state.names)
+                if (name != state.name)
+                Card(
+                  clipBehavior: Clip.hardEdge,
+                  child: InkWell(
+                    splashColor: Colors.blue,
+                    onTap: () {
+                      print("tap");
+                    },
+                    child: SizedBox(
+                      width: 200,
+                      height: 50,
+                      child: Center(
+                        child: Text(
+                          name,
+                          style: const TextStyle(
+                            fontSize: 16.0
+                          )
+                        ),
+                      )
+                    )
+                  ),
+                )
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class Home extends StatelessWidget {
@@ -297,16 +437,24 @@ class Home extends StatelessWidget {
     return Focus(
       autofocus: true,
       onKeyEvent: (_, event) {
-        if (event is KeyDownEvent) {
+        if (event is KeyDownEvent || event is KeyRepeatEvent) {
           switch (event.logicalKey) {
             case LogicalKeyboardKey.arrowRight:
+            case LogicalKeyboardKey.keyD:
               state.scrollRight();
             case LogicalKeyboardKey.arrowLeft:
+            case LogicalKeyboardKey.keyA:
               state.scrollLeft();
             case LogicalKeyboardKey.arrowUp:
+            case LogicalKeyboardKey.keyW:
               state.scrollUp();
             case LogicalKeyboardKey.arrowDown:
+            case LogicalKeyboardKey.keyS:
               state.scrollDown();
+            case LogicalKeyboardKey.keyO:
+              state.zoomOut();
+            case LogicalKeyboardKey.keyI:
+              state.zoomIn();
           }
         }
         return KeyEventResult.handled;
@@ -340,17 +488,21 @@ class Board extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    State state = context.watch<State>();
+    double size = 400.0 / state.scale;
+
     return Table(
       border: TableBorder.all(
         width: 1.0,
       ),
-      defaultColumnWidth: const FixedColumnWidth(BoardSquare.size),
+      defaultColumnWidth: FixedColumnWidth(size),
       children: List.generate(game.ydim, (i) =>
         TableRow(children: List.generate(game.xdim, (j) =>
           BoardSquare(
             piece: game.pieces[j][game.ydim - 1 - i],
             color: [SquareColor.white, SquareColor.black][(i + j) % 2],
             coordinate: (j, game.ydim - 1 - i),
+            size: size,
           ),
         ),
       )),
@@ -359,7 +511,7 @@ class Board extends StatelessWidget {
 }
 
 class BoardSquare extends StatelessWidget {
-  static const double size = 75.0;
+  final double size;
   final Piece? piece;
   final SquareColor color;
   final (int, int) coordinate;
@@ -368,7 +520,8 @@ class BoardSquare extends StatelessWidget {
       super.key,
       required this.coordinate,
       required this.piece,
-      required this.color
+      required this.color,
+      required this.size,
   });
 
   Color realColor((BigInt, BigInt)? hoverSquare,
