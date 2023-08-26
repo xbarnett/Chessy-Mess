@@ -101,7 +101,7 @@ class State extends ChangeNotifier {
   }
 
   State() : _channel =
-      WebSocketChannel.connect(Uri.parse("ws://localhost:8000")) {
+      WebSocketChannel.connect(Uri.parse("ws://haskell.barnett.au:6969")) {
     _x1 = BigInt.from(-scale);
     _y1 = BigInt.from(-scale);
     _x2 = BigInt.from(scale);

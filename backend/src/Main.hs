@@ -339,7 +339,7 @@ main = do
   --putStrLn ((T.unpack . T.decodeUtf8) (J.encode (RequestName "Steve")))
   putStrLn "server started"
   state <- newMVar (ServerState {namedClients = M.empty, games = []})
-  N.runServer "localhost" 8000 $ \pc -> do
+  N.runServer "haskell.barnett.au" 6969 $ \pc -> do
     c <- N.acceptRequest pc
     clientLoop state (Client {connection = c, clientName = Nothing})
 
