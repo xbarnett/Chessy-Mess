@@ -1,4 +1,4 @@
-import "package:fast_immutable_collections/fast_immutable_collections.dart";
+import "dart:convert";
 import "package:flutter_svg/flutter_svg.dart";
 import "package:flutter/material.dart";
 import "package:flutter/services.dart";
@@ -8,15 +8,15 @@ import "package:web_socket_channel/web_socket_channel.dart";
 class State extends ChangeNotifier {
   final WebSocketChannel _channel;
 
-  (int, int)? _hoverSquare;
-  (int, int)? _selectSquare;
-  (int, int)? get hoverSquare => _hoverSquare;
-  (int, int)? get selectSquare => _selectSquare;
+  (BigInt, BigInt)? _hoverSquare;
+  (BigInt, BigInt)? _selectSquare;
+  (BigInt, BigInt)? get hoverSquare => _hoverSquare;
+  (BigInt, BigInt)? get selectSquare => _selectSquare;
 
-  final BigInt _x1 = BigInt.from(-4);
-  final BigInt _y1 = BigInt.from(-4);
-  final BigInt _x2 = BigInt.from(4);
-  final BigInt _y2 = BigInt.from(4);
+  BigInt _x1 = BigInt.from(-10);
+  BigInt _y1 = BigInt.from(-10);
+  BigInt _x2 = BigInt.from(10);
+  BigInt _y2 = BigInt.from(10);
   BigInt get x1 => _x1;
   BigInt get y1 => _y1;
   BigInt get x2 => _x2;
@@ -25,32 +25,59 @@ class State extends ChangeNotifier {
   GameState? _game;
   GameState? get game => _game;
 
+  void scrollRight() {
+    _x1 += BigInt.from(1);
+    _x2 += BigInt.from(1);
+    requestGame();
+  }
+  void scrollLeft() {
+    _x1 -= BigInt.from(1);
+    _x2 -= BigInt.from(1);
+    requestGame();
+  }
+
+  void scrollUp() {
+    _y1 += BigInt.from(1);
+    _y2 += BigInt.from(1);
+    requestGame();
+  }
+
+  void scrollDown() {
+    _y1 -= BigInt.from(1);
+    _y2 -= BigInt.from(1);
+    requestGame();
+  }
+
   State() : _channel =
-      WebSocketChannel.connect( Uri.parse("ws://localhost:8000")) {
+      WebSocketChannel.connect(Uri.parse("ws://localhost:8000")) {
     requestGame();
     processResponses();
   }
 
   void requestGame() async {
     Map<String, dynamic> request = {
-      "request": "get state",
-      "x1": x1,
-      "y1": y1,
-      "x2": x2,
-      "y2": y2,
+      "\"tag\"": "\"RequestState\"",
+      "\"x1\"": x1,
+      "\"y1\"": y1,
+      "\"x2\"": x2,
+      "\"y2\"": y2,
     };
     _channel.sink.add(request.toString());
   }
 
   void processResponses() async {
     await for (String s in _channel.stream) {
-      // do stuff with s
-      notifyListeners();
+      print("received: $s");
+      Map<String, dynamic> json = jsonDecode(s);
+      if (json["tag"] == "ResponseState") {
+        _game = GameState.fromJson(json);
+        notifyListeners();
+      }
     }
   }
 
   void hoverEnter((int, int) p) {
-    _hoverSquare = p;
+    _hoverSquare = (BigInt.from(p.$1) + x1, BigInt.from(p.$2) + y1);
     notifyListeners();
   }
 
@@ -60,19 +87,79 @@ class State extends ChangeNotifier {
   }
 
   void click((int, int) p) {
+    (BigInt, BigInt) q = (BigInt.from(p.$1) + x1, BigInt.from(p.$2) + y1);
+
     if (_selectSquare == null) {
-      _selectSquare = p;
+      _selectSquare = (BigInt.from(p.$1) + x1, BigInt.from(p.$2) + y1);
+//      Map<String, dynamic> request = {
+  //      "\"tag\"": "\"RequestAttacking\"",
+    //    "\"contents\"": {
+      //    
+       // }
+    //  }
     } else {
       if (p != _selectSquare) {
-        print("move from $_selectSquare to $p");
+        Map<String, dynamic> request = {
+          "\"tag\"": "\"RequestMove\"",
+          "\"contents\"": {
+            "\"mfrom\"": [
+              selectSquare!.$1,
+              selectSquare!.$2,
+            ],
+            "\"mto\"": [
+              q.$1,
+              q.$2,
+            ]
+          }
+        };
+        _channel.sink.add(request.toString());
       }
       _selectSquare = null;
     }
-    notifyListeners();
+    requestGame();
   }
 }
 
 class GameState {
+  final int xdim;
+  final int ydim;
+  final List<List<Piece?>> pieces;
+  final PieceColor player;
+  final PieceColor? winner;
+
+  const GameState({
+    required this.xdim,
+    required this.ydim,
+    required this.pieces,
+    required this.player,
+    required this.winner,
+  });
+
+  static GameState fromJson(Map<String, dynamic> json) {
+    int xdim = json["xdim"];
+    int ydim = json["ydim"];
+    List<List<Piece?>> pieces = List.generate(xdim, (i) =>
+      List.generate(ydim, (j) {
+          dynamic val = json["pieces"][i][j];
+          if (val == null) {
+            return null;
+          }
+          return Piece.fromJson(val);
+        }
+      )
+    );
+    return GameState(
+      xdim: xdim,
+      ydim: ydim,
+      pieces: pieces,
+      player: json["player"] == "Red" ? PieceColor.red : PieceColor.blue,
+      winner: switch (json["hasWon"]) {
+        "Red" => PieceColor.red,
+        "Blue" => PieceColor.blue,
+        _ => null,
+      },
+    );
+  }
 }
 
 abstract class Piece {
@@ -80,6 +167,28 @@ abstract class Piece {
   String get name;
 
   const Piece({required this.color});
+
+  static Piece fromJson(Map<String, dynamic> json) {
+    PieceColor color = switch (json["pieceAlignment"]) {
+      "LE" => PieceColor.red,
+      "NE" => PieceColor.red,
+      "CE" => PieceColor.red,
+      "LG" => PieceColor.blue,
+      "NG" => PieceColor.blue,
+      "CG" => PieceColor.blue,
+      _ => PieceColor.grey,
+    };
+
+    return switch (json["pieceType"]) {
+      "Pawn" => Pawn(color: color),
+      "Rook" => Rook(color: color),
+      "Knight" => Knight(color: color),
+      "Bishop" => Bishop(color: color),
+      "Queen" => Queen(color: color),
+      "King" => King(color: color),
+      _ => throw ErrorDescription("unknown piece"),
+    };
+  }
 }
 
 class Pawn extends Piece {
@@ -156,6 +265,14 @@ class Home extends StatelessWidget {
       onKeyEvent: (_, event) {
         if (event is KeyDownEvent) {
           switch (event.logicalKey) {
+            case LogicalKeyboardKey.arrowRight:
+              state.scrollRight();
+            case LogicalKeyboardKey.arrowLeft:
+              state.scrollLeft();
+            case LogicalKeyboardKey.arrowUp:
+              state.scrollUp();
+            case LogicalKeyboardKey.arrowDown:
+              state.scrollDown();
           }
         }
         return KeyEventResult.handled;
@@ -165,16 +282,23 @@ class Home extends StatelessWidget {
           child: Center(
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (state.game == null)
-                Text(
+              children: state.game == null ? [
+                const Text(
                   "Waiting for connection...",
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 32.0,
                   )
-                )
-                else
-                Board(size: 8),
+                ),
+              ] : [
+              Board(game: state.game!),
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(state.game!.player.toHumanString()),
+                  if (state.game!.winner != null)
+                  Text("${state.game!.winner!.toHumanString()} has won!"),
+                ],
+              ),
               ],
             ),
           ),
@@ -185,33 +309,9 @@ class Home extends StatelessWidget {
 }
 
 class Board extends StatelessWidget {
-  static const startRow = [
-    Rook.new,
-    Knight.new,
-    Bishop.new,
-    Queen.new,
-    King.new,
-    Bishop.new,
-    Knight.new,
-    Rook.new,
-  ];
+  final GameState game;
 
-  final int size; // positive
-  final IMap<(int, int), Piece?> pieces; // keys in [0, size)
-
-  Board({super.key, required this.size}) :
-    pieces = IMap.fromKeys(
-      keys: Iterable.generate(size * size, (i) => (i ~/ size, i % size)),
-      valueMapper: (p) {
-        return switch (p) {
-          (int i, 0) => startRow[i](color: PieceColor.red),
-          (_, 1) => const Pawn(color: PieceColor.red),
-          (_, 6) => const Pawn(color: PieceColor.blue),
-          (int i, 7) => startRow[i](color: PieceColor.blue),
-          _ => null,
-        };
-      }
-    );
+  const Board({super.key, required this.game});
 
   @override
   Widget build(BuildContext context) {
@@ -220,21 +320,21 @@ class Board extends StatelessWidget {
         width: 1.0,
       ),
       defaultColumnWidth: const FixedColumnWidth(BoardSquare.size),
-      children: List.generate(size, (i) =>
-        TableRow(children: List.generate(size, (j) =>
+      children: List.generate(game.ydim, (i) =>
+        TableRow(children: List.generate(game.xdim, (j) =>
           BoardSquare(
-            piece: pieces[(j, size - 1 - i)],
+            piece: game.pieces[j][game.ydim - 1 - i],
             color: [SquareColor.white, SquareColor.black][(i + j) % 2],
-            coordinate: (j, size - 1 - i),
-          )
-        )
+            coordinate: (j, game.ydim - 1 - i),
+          ),
+        ),
       )),
     );
   }
 }
 
 class BoardSquare extends StatelessWidget {
-  static const double size = 75.0;
+  static const double size = 40.0;
   final Piece? piece;
   final SquareColor color;
   final (int, int) coordinate;
@@ -246,10 +346,16 @@ class BoardSquare extends StatelessWidget {
       required this.color
   });
 
-  Color realColor((int, int)? hoverSquare, (int, int)? selectSquare) {
-    if (coordinate == selectSquare) {
+  Color realColor((BigInt, BigInt)? hoverSquare,
+    (BigInt, BigInt)? selectSquare, State state) {
+    (BigInt, BigInt) bc = (
+      BigInt.from(coordinate.$1) + state.x1,
+      BigInt.from(coordinate.$2) + state.y1,
+    );
+
+    if (bc == selectSquare) {
       return Colors.brown;
-    } else if (coordinate == hoverSquare) {
+    } else if (bc == hoverSquare) {
       return Colors.yellow;
     } else {
       return switch (color) {
@@ -274,7 +380,7 @@ class BoardSquare extends StatelessWidget {
             Container(
               width: size,
               height: size,
-              color: realColor(state.hoverSquare, state.selectSquare)
+              color: realColor(state.hoverSquare, state.selectSquare, state)
             ),
             if (piece != null)
             SvgPicture.asset(
@@ -315,4 +421,10 @@ enum SquareColor {
 
 enum PieceColor {
   red, blue, grey;
+
+  String toHumanString() => switch(this) {
+    red => "Red",
+    blue => "Blue",
+    grey => "Grey",
+  };
 }
