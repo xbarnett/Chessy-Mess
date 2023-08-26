@@ -3,11 +3,7 @@
 module Main (main) where
 
 import GHC.Generics
-import qualified Data.ByteString.Lazy as BS
-import qualified Data.Text.Lazy as T
-import qualified Data.Text.Lazy.Encoding as T
 import qualified Data.Aeson as J
-import qualified Data.Aeson.Decoding.ByteString.Lazy as J
 import qualified Data.Map.Strict as M
 import qualified Network.WebSockets as N
 
@@ -90,25 +86,26 @@ data Request = RequestMove Move |
   y2 :: Integer
 } deriving (Generic, Show)
 
-listAttacking :: State -> (Integer, Integer) -> (Integer, Integer) ->
-  (Integer, Integer) -> [(Integer, Integer)]
-listAttacking s p (x1, y1) (x2, y2) = if
-  ofPlayer (pieceAt s p) (toMove s) then
-  [(x, y) | x <- [x1 .. x2], y <- [y1 .. y2], isLegalMove s
-    (Move {mfrom = p, mto = (x, y)}) /= Nothing] else []
-
 instance J.ToJSON Request where
   toEncoding = J.genericToEncoding J.defaultOptions
 
 instance J.FromJSON Request
 
-data Response = ResponseInvalid | ResponseState {
+data Response = ResponseInvalid |
+  ResponseAttacking [(Integer, Integer)] | ResponseState {
   player :: Player,
   xdim :: Integer,
   ydim :: Integer,
   pieces :: [[Maybe Piece]],
   hasWon :: Maybe Player
 } deriving (Generic, Show)
+
+listAttacking :: State -> (Integer, Integer) -> (Integer, Integer) ->
+  (Integer, Integer) -> Response
+listAttacking s p (x1, y1) (x2, y2) = ResponseAttacking $ if
+  ofPlayer (pieceAt s p) (toMove s) then
+  [(x, y) | x <- [x1 .. x2], y <- [y1 .. y2], isLegalMove s
+    (Move {mfrom = p, mto = (x, y)}) /= Nothing] else []
 
 instance J.ToJSON Response where
   toEncoding = J.genericToEncoding J.defaultOptions
@@ -239,7 +236,9 @@ getRect :: State -> (Integer, Integer) -> (Integer, Integer) -> Response
 getRect s (x1, y1) (x2, y2) = if
   (1 <= x2 - x1 && x2 - x1 <= 64 && 1 <= y2 - y1 && y2 - y1 <= 64)
   then ResponseState {
-    player = toMove s,
+    player = (case winnerOfGame s of
+      Nothing -> toMove s
+      Just w -> w),
     xdim = x2 - x1 + 1,
     ydim = y2 - y1 + 1,
     pieces = [[pieceAt s (i, j) | j <- [y1 .. y2]] | i <- [x1 .. x2]],
@@ -269,22 +268,15 @@ handleClient c state = do
           Just state2 -> handleClient c state2
         Just (RequestAttacking p p1 p2) -> do
           let r = N.Text (J.encode (listAttacking state p p1 p2)) Nothing
-          putStrLn "sent:"
+          putStrLn "sent lmao:"
           print r
           putStrLn ""
           N.sendDataMessage c r
           handleClient c state
     _ -> handleClient c state
 
--- T.unpack . T.decodeUtf8
-
-serialize :: Request -> String
-serialize = T.unpack . T.decodeUtf8 . J.encode
-
 main :: IO ()
 main = do
-  putStrLn ((T.unpack . T.decodeUtf8) (J.encode
-                                       (RequestAttacking (1,2) (3,4) (5,6))))
   putStrLn "server online"
   N.runServer "localhost" 8000 $ \pc -> do
     c <- N.acceptRequest pc

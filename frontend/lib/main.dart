@@ -13,10 +13,10 @@ class State extends ChangeNotifier {
   (BigInt, BigInt)? get hoverSquare => _hoverSquare;
   (BigInt, BigInt)? get selectSquare => _selectSquare;
 
-  BigInt _x1 = BigInt.from(-10);
-  BigInt _y1 = BigInt.from(-10);
-  BigInt _x2 = BigInt.from(10);
-  BigInt _y2 = BigInt.from(10);
+  BigInt _x1 = BigInt.from(-5);
+  BigInt _y1 = BigInt.from(-5);
+  BigInt _x2 = BigInt.from(5);
+  BigInt _y2 = BigInt.from(5);
   BigInt get x1 => _x1;
   BigInt get y1 => _y1;
   BigInt get x2 => _x2;
@@ -25,27 +25,34 @@ class State extends ChangeNotifier {
   GameState? _game;
   GameState? get game => _game;
 
+  List<(BigInt, BigInt)> _underAttack = [];
+  List<(BigInt, BigInt)> get underAttack => _underAttack;
+
   void scrollRight() {
     _x1 += BigInt.from(1);
     _x2 += BigInt.from(1);
     requestGame();
+    requestAttacking();
   }
   void scrollLeft() {
     _x1 -= BigInt.from(1);
     _x2 -= BigInt.from(1);
     requestGame();
+    requestAttacking();
   }
 
   void scrollUp() {
     _y1 += BigInt.from(1);
     _y2 += BigInt.from(1);
     requestGame();
+    requestAttacking();
   }
 
   void scrollDown() {
     _y1 -= BigInt.from(1);
     _y2 -= BigInt.from(1);
     requestGame();
+    requestAttacking();
   }
 
   State() : _channel =
@@ -65,12 +72,34 @@ class State extends ChangeNotifier {
     _channel.sink.add(request.toString());
   }
 
+  void requestAttacking() {
+    if (selectSquare == null) {
+      return;
+    }
+
+    Map<String, dynamic> request = {
+      "\"tag\"": "\"RequestAttacking\"",
+      "\"contents\"": [
+          [_selectSquare!.$1, _selectSquare!.$2],
+          [x1, y1],
+          [x2, y2]
+        ]
+      };
+    _channel.sink.add(request.toString());
+  }
+
   void processResponses() async {
     await for (String s in _channel.stream) {
-      print("received: $s");
       Map<String, dynamic> json = jsonDecode(s);
       if (json["tag"] == "ResponseState") {
         _game = GameState.fromJson(json);
+        notifyListeners();
+      } else if (json["tag"] == "ResponseAttacking") {
+        _underAttack = List.generate(json["contents"].length, (i) => (
+            BigInt.from(json["contents"][i][0]),
+            BigInt.from(json["contents"][i][1]),
+          )
+        );
         notifyListeners();
       }
     }
@@ -91,14 +120,9 @@ class State extends ChangeNotifier {
 
     if (_selectSquare == null) {
       _selectSquare = (BigInt.from(p.$1) + x1, BigInt.from(p.$2) + y1);
-//      Map<String, dynamic> request = {
-  //      "\"tag\"": "\"RequestAttacking\"",
-    //    "\"contents\"": {
-      //    
-       // }
-    //  }
+      requestAttacking();
     } else {
-      if (p != _selectSquare) {
+      if (q != _selectSquare) {
         Map<String, dynamic> request = {
           "\"tag\"": "\"RequestMove\"",
           "\"contents\"": {
@@ -115,6 +139,7 @@ class State extends ChangeNotifier {
         _channel.sink.add(request.toString());
       }
       _selectSquare = null;
+      _underAttack = [];
     }
     requestGame();
   }
@@ -260,6 +285,15 @@ class Home extends StatelessWidget {
   Widget build(BuildContext context) {
     State state = context.watch<State>();
 
+    Color? bg;
+    if (state.game != null) {
+      bg = switch (state.game!.player) {
+        PieceColor.blue => Colors.blue,
+        PieceColor.red => Colors.red,
+        _ => throw ErrorDescription("grey move ?!"),
+      };
+    }
+
     return Focus(
       autofocus: true,
       onKeyEvent: (_, event) {
@@ -278,29 +312,20 @@ class Home extends StatelessWidget {
         return KeyEventResult.handled;
       },
       child: Scaffold(
+        backgroundColor: bg,
         body: SafeArea(
           child: Center(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: state.game == null ? [
-                const Text(
-                  "Waiting for connection...",
-                  style: TextStyle(
-                    fontSize: 32.0,
-                  )
-                ),
-              ] : [
-              Board(game: state.game!),
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(state.game!.player.toHumanString()),
-                  if (state.game!.winner != null)
-                  Text("${state.game!.winner!.toHumanString()} has won!"),
-                ],
+            child: state.game == null ? const Text(
+              "Waiting for connection...",
+               style: TextStyle(
+                 fontSize: 32.0,
+               )
+             ) : Container(
+              decoration: BoxDecoration(
+                border: Border.all(width: 4.0),
               ),
-              ],
-            ),
+              child: Board(game: state.game!),
+              ),
           ),
         ),
       ),
@@ -334,7 +359,7 @@ class Board extends StatelessWidget {
 }
 
 class BoardSquare extends StatelessWidget {
-  static const double size = 40.0;
+  static const double size = 75.0;
   final Piece? piece;
   final SquareColor color;
   final (int, int) coordinate;
@@ -353,11 +378,14 @@ class BoardSquare extends StatelessWidget {
       BigInt.from(coordinate.$2) + state.y1,
     );
 
-    if (bc == selectSquare) {
-      return Colors.brown;
+    if (bc == selectSquare && state.game!.winner == null) {
+      return Colors.pink.shade900;
     } else if (bc == hoverSquare) {
-      return Colors.yellow;
-    } else {
+      return Colors.pink.shade100;
+    } else if (state.underAttack.contains(bc)) {
+      return Colors.pink.shade500;
+    }
+    else {
       return switch (color) {
         SquareColor.white => const Color(0xFFFFCC9C),
         SquareColor.black => const Color(0xFFD88C44),
