@@ -172,6 +172,8 @@ class State extends ChangeNotifier {
           json["contents"][1][i],
         );
         notifyListeners();
+      } else if (json["tag"] == "ResponseValieHello") {
+        requestName();
       }
     }
   }

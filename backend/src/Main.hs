@@ -304,6 +304,7 @@ data Request = RequestMove Move | RequestName String |
 
 data Response = ResponseHello String [String] | ResponseInvalid |
   ResponseInvalidName | ResponseInvalidGame | ResponseValidGame |
+  ResponseValidHello |
   ResponseAttacking [(Integer, Integer)] | ResponseState {
   player :: Player,
   xdim :: Integer,
@@ -372,6 +373,8 @@ clientLoop state client = do
           modifyMVar_ state $ \serverState -> return $
             serverState {games = g : games serverState}
           N.sendTextData (connection client) (J.encode ResponseValidGame)
+          putStrLn ("other player is" ++ show (clientName (
+                                                  namedClients curState M.! s)))
           N.sendTextData (connection (namedClients curState M.! s))
             (J.encode ResponseValidGame)
         else do
