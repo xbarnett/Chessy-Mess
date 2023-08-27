@@ -153,7 +153,7 @@ class State extends ChangeNotifier {
       print("received");
       print(s);
       Map<String, dynamic> json = jsonDecode(s);
-      if (json["tag"] == "ValidGame") {
+      if (json["tag"] == "ResponseValidGame") {
         requestGame();
       }
       else if (json["tag"] == "ResponseState") {
