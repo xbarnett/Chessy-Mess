@@ -357,7 +357,7 @@ clientLoop state client = do
             serverState {games = g : games serverState}
         else do
           N.sendTextData (connection client) (J.encode ResponseInvalidGame)
-          clientLoop state client
+        clientLoop state client
     Just (RequestState x1 y1 x2 y2) -> case playingIn curState client of
       Just g -> do
         putStrLn "AAA"
