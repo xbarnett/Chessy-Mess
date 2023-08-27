@@ -363,7 +363,6 @@ clientLoop state client = do
           clientLoop state client
     Just (RequestState x1 y1 x2 y2) -> case playingIn curState client of
       Just g -> do
-        return ()
         let r = J.encode (getRect (gameState g) (x1, y1) (x2, y2))
         N.sendTextData (connection client) r
       Nothing -> do

@@ -347,7 +347,7 @@ class App extends StatelessWidget {
     State state = context.watch<State>();
 
     return MaterialApp(
-      home: const Landing(),
+      home: state.landing ? const Landing() : const Home(),
       theme: ThemeData.dark(useMaterial3: true),
       title: "Chessy Mess!",
     );
