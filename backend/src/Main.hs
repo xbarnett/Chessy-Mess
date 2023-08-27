@@ -106,6 +106,11 @@ nextPlayer :: Player -> Player
 nextPlayer Red = Blue
 nextPlayer Blue = Red
 
+cToPiece :: (Integer, Integer) -> Maybe Piece
+cToPiece (_, -5) = Just (Piece {pieceType = Knight, pieceAlignment = LE})
+cToPiece (_, 5) = Just (Piece {pieceType = Knight, pieceAlignment = LG})
+cToPiece _ = Nothing
+
 initialState :: State
 initialState = State {
   specifics = M.fromList [
@@ -120,7 +125,7 @@ initialState = State {
       ((1, 3), Just (Piece {pieceType = Queen, pieceAlignment = LG})),
       ((-1, 3), Just (Piece {pieceType = Knight, pieceAlignment = LG}))
     ],
-  generals = const Nothing,
+  generals = cToPiece,
   toMove = Red
 }
 
