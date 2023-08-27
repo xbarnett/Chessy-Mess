@@ -241,6 +241,9 @@ data Client = Client {
   clientName :: Maybe String
 }
 
+instance Show Client where
+  show c = show (clientName c)
+
 data Game = Game {
   red :: Client,
   --redTime :: Int,
@@ -386,6 +389,10 @@ clientLoop state client = do
                 serverState {
                   games = nextGames n1 n2 state2 (games curState)
                  }
+            _ -> do
+              putStrLn "horror!"
+              print (red g)
+              print (blue g)
         _ -> return ()
       clientLoop state client
 
