@@ -360,9 +360,10 @@ clientLoop state client = do
           clientLoop state client
     Just (RequestState x1 y1 x2 y2) -> case playingIn curState client of
       Just g -> do
-        let r = J.encode (getRect (gameState g) (x1, y1) (x2, y2))
         putStrLn "AAA"
-        N.sendTextData (connection client) r
+        N.sendTextData (connection client)
+          (J.encode (getRect (gameState g) (x1, y1) (x2, y2)))
+        clientLoop state client
       Nothing -> do
         N.sendTextData (connection client) (J.encode ResponseInvalid)
         putStrLn "BBB"
