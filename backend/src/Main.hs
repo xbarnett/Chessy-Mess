@@ -356,7 +356,7 @@ clientLoop state client = do
           modifyMVar_ state $ \serverState -> return $
             serverState {games = g : games serverState}
         else do
-          N.sendTextData (connection client) (J.encode ResponseInvalidGame)
+          N.sendTextData (connection client) (J.encode ResponseInvalid)
           clientLoop state client
     Just (RequestState x1 y1 x2 y2) -> case playingIn curState client of
       Just g -> do

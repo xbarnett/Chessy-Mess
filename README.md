@@ -2,6 +2,8 @@ Chessy Mess!
 
 A crazy chessy game on an infinite board.
 
+Link: [here](lol).
+
 Build Instructions:
 
 To build the front end, navigate to the ``frontend`` directory and run ``flutter build web``.

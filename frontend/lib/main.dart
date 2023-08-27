@@ -6,7 +6,8 @@ import "package:provider/provider.dart";
 import "package:web_socket_channel/web_socket_channel.dart";
 
 class State extends ChangeNotifier {
-  final bool landing = true;
+  bool _landing = true;
+  bool get landing => _landing;
   List<String> _names = [];
   List<String> get names => _names;
   String? _name;
@@ -73,6 +74,12 @@ class State extends ChangeNotifier {
     requestAttacking();
   }
 
+  void startGame() {
+    _landing = false;
+    requestGame();
+    requestAttacking();
+  }
+
   void scrollRight() {
     _x1 += BigInt.from(1);
     _x2 += BigInt.from(1);
@@ -109,6 +116,14 @@ class State extends ChangeNotifier {
     processResponses();
   }
 
+  void requestStartGame(String s) async {
+    Map<String, dynamic> request = {
+      "\"tag\"": "\"RequestStartGame\"",
+      "\"contents\"": "\"$s\"",
+    };
+    _channel.sink.add(request.toString());
+  }
+
   void requestGame() async {
     Map<String, dynamic> request = {
       "\"tag\"": "\"RequestState\"",
@@ -143,6 +158,7 @@ class State extends ChangeNotifier {
       Map<String, dynamic> json = jsonDecode(s);
       if (json["tag"] == "ResponseState") {
         _game = GameState.fromJson(json);
+        startGame();
         notifyListeners();
       } else if (json["tag"] == "ResponseAttacking") {
         _underAttack = List.generate(json["contents"].length, (i) => (
@@ -363,7 +379,7 @@ class Landing extends StatelessWidget {
                       controller: state.nameBuffer,
                       decoration: const InputDecoration(
                         border: OutlineInputBorder(),
-                        hintText: "Enter your name"
+                        hintText: "Debug Enter your name"
                       ),
                     ),
                   ),
@@ -394,7 +410,7 @@ class Landing extends StatelessWidget {
                   child: InkWell(
                     splashColor: Colors.blue,
                     onTap: () {
-                      print("tap");
+                      state.requestStartGame(name);
                     },
                     child: SizedBox(
                       width: 200,
