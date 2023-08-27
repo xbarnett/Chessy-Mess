@@ -353,6 +353,7 @@ clientLoop state client = do
         if s /= name && elem s (allNames curState) &&
             playingAs curState s == Nothing then do
           g <- getGame client (namedClients curState M.! s)
+          putStrLn "CCC"
           modifyMVar_ state $ \serverState -> return $
             serverState {games = g : games serverState}
         else do
