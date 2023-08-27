@@ -172,7 +172,7 @@ class State extends ChangeNotifier {
           json["contents"][1][i],
         );
         notifyListeners();
-      } else if (json["tag"] == "ResponseValieHello") {
+      } else if (json["tag"] == "ResponseValidName") {
         requestName();
       }
     }
@@ -380,7 +380,7 @@ class Landing extends StatelessWidget {
                       controller: state.nameBuffer,
                       decoration: const InputDecoration(
                         border: OutlineInputBorder(),
-                        hintText: "Debug Enter your name"
+                        hintText: "Enter your name"
                       ),
                     ),
                   ),
