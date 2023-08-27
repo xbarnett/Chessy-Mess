@@ -265,8 +265,9 @@ combineGameRes :: Maybe Player -> Maybe Player -> Maybe Player
 combineGameRes (Just p) _ = Just p
 combineGameRes _ q = q
 
-playingAs :: ServerState -> String -> Maybe Player
-playingAs state string = foldr combineGameRes Nothing
+playingAs :: ServerState -> Maybe String -> Maybe Player
+playingAs _ Nothing = Nothing
+playingAs state (Just string) = foldr combineGameRes Nothing
   (map (playingAsInGame string) (games state))
 
 playingInGame :: Client -> Game -> Bool
@@ -321,6 +322,13 @@ sendNames s = sequence_ [sendTo c | c <- M.elems (namedClients s)] where
     Just name -> N.sendTextData (connection c)
       (J.encode (ResponseHello name (allNames s)))
 
+nextGames :: String -> String -> State -> [Game] -> [Game]
+nextGames p1 p2 next gs = map f gs where
+  f :: Game -> Game
+  f g = case (clientName (red g), clientName (blue g)) of
+    (p1, p2) -> g {gameState = next}
+    _ -> g
+
 clientLoop :: MVar ServerState -> Client -> IO ()
 clientLoop state client = do
   putStrLn "loopin"
@@ -351,7 +359,7 @@ clientLoop state client = do
         clientLoop state client
       Just name -> do
         if s /= name && elem s (allNames curState) &&
-            playingAs curState s == Nothing then do
+            playingAs curState (Just s) == Nothing then do
           g <- getGame client (namedClients curState M.! s)
           modifyMVar_ state $ \serverState -> return $
             serverState {games = g : games serverState}
@@ -368,6 +376,22 @@ clientLoop state client = do
       Nothing -> do
         N.sendTextData (connection client) (J.encode ResponseInvalid)
         clientLoop state client
+    Just (RequestMove move) -> do
+      case (playingIn curState client,playingAs curState (clientName client)) of
+        (Just g, Just p) -> case makeMove (gameState g) move of
+          Nothing -> clientLoop state client
+          Just state2 -> case (clientName (red g), clientName (blue g)) of
+            (Just n1, Just n2) -> do
+              modifyMVar_ state $ \serverState -> return $
+                serverState {
+                  games = nextGames n1 n2 state2 (games curState)
+                 }
+        _ -> return ()
+      clientLoop state client
+
+--case makeMove state move of
+  --    Nothing -> handleClient c state
+    --  Just state2 -> handleClient c state2
     Just _ -> do
       N.sendTextData (connection client) (J.encode ResponseInvalid)
       clientLoop state client
