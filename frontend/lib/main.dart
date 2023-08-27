@@ -59,7 +59,6 @@ class State extends ChangeNotifier {
       _scale *= 2;
     }
     requestGame();
-    requestAttacking();
   }
 
   void zoomIn() {
@@ -71,12 +70,14 @@ class State extends ChangeNotifier {
       _scale ~/= 2;
     }
     requestGame();
-    requestAttacking();
   }
 
-  void startGame() {
-    _landing = false;
-    requestGame();
+  void initGame(Map<String, dynamic> json) {
+    if (_landing) {
+      _landing = false;
+      _scale = 4;
+    }
+    _game = GameState.fromJson(json);
     requestAttacking();
   }
 
@@ -84,27 +85,23 @@ class State extends ChangeNotifier {
     _x1 += BigInt.from(1);
     _x2 += BigInt.from(1);
     requestGame();
-    requestAttacking();
   }
   void scrollLeft() {
     _x1 -= BigInt.from(1);
     _x2 -= BigInt.from(1);
     requestGame();
-    requestAttacking();
   }
 
   void scrollUp() {
     _y1 += BigInt.from(1);
     _y2 += BigInt.from(1);
     requestGame();
-    requestAttacking();
   }
 
   void scrollDown() {
     _y1 -= BigInt.from(1);
     _y2 -= BigInt.from(1);
     requestGame();
-    requestAttacking();
   }
 
   State() : _channel =
@@ -156,9 +153,8 @@ class State extends ChangeNotifier {
       print("received");
       print(s);
       Map<String, dynamic> json = jsonDecode(s);
-      if (json["tag"] == "ResponseState" ||
-        json["tag"] == "ResponseValidGame") {
-        startGame();
+      if (json["tag"] == "ResponseState") {
+        initGame(json);
         notifyListeners();
       } else if (json["tag"] == "ResponseAttacking") {
         _underAttack = List.generate(json["contents"].length, (i) => (
