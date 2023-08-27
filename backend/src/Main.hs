@@ -288,7 +288,6 @@ playingIn state c = case filter (playingInGame c) (games state) of
   (g : _) -> Just g
 
 data ServerState = ServerState {
-  allClients :: [Client],
   namedClients :: M.Map String Client,
   games :: [Game]
 }
@@ -316,7 +315,7 @@ data Request = RequestMove Move | RequestName String |
 
 data Response = ResponseHello String [String] | ResponseInvalid |
   ResponseInvalidName | ResponseInvalidGame | ResponseValidGame |
-  ResponseValidName |
+  ResponseValidHello |
   ResponseAttacking [(Integer, Integer)] | ResponseState {
   player :: Player,
   xdim :: Integer,
@@ -332,7 +331,7 @@ isValidName client state s = clientName client == Nothing &&
   1 <= length s && length s <= 32
 
 sendNames :: ServerState -> IO ()
-sendNames s = sequence_ [sendTo c | c <- allClients s] where
+sendNames s = sequence_ [sendTo c | c <- M.elems (namedClients s)] where
   sendTo c = case clientName c of
     Nothing -> return ()
     Just name -> N.sendTextData (connection c)
@@ -445,8 +444,7 @@ main :: IO ()
 main = do
   --putStrLn ((T.unpack . T.decodeUtf8) (J.encode (RequestName "Steve")))
   putStrLn "server started"
-  state <- newMVar (ServerState {allClients = [],
-                                 namedClients = M.empty, games = []})
+  state <- newMVar (ServerState {namedClients = M.empty, games = []})
   N.runServer "192.168.1.99" 6969 $ \pc -> do
     c <- N.acceptRequest pc
     clientLoop state (Client {connection = c, clientName = Nothing})
