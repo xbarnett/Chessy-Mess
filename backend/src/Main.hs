@@ -366,8 +366,9 @@ clientLoop state client = do
           g <- getGame client (namedClients curState M.! s)
           modifyMVar_ state $ \serverState -> return $
             serverState {games = g : games serverState}
-          N.sendTextData (connection client)
-            (J.encode (getRect (gameState g) (-4, -4) (4, 4)))
+          N.sendTextData (connection client) (J.encode ResponseValidGame)
+          N.sendTextData (connection (namedClients curState M.! s))
+            (J.encode ResponseValidGame)
         else do
           N.sendTextData (connection client) (J.encode ResponseInvalidGame)
         clientLoop state client
