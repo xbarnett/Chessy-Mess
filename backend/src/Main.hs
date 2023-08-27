@@ -349,14 +349,17 @@ clientLoop state client = do
       Nothing -> do
         N.sendTextData (connection client) (J.encode ResponseInvalidGame)
         clientLoop state client
-      Just name ->
+      Just name -> do
+        print(s /= name)
+        print(elem s (allNames curState))
+        print(playingAs curState s == Nothing)
         if s /= name && elem s (allNames curState) &&
             playingAs curState s == Nothing then do
           g <- getGame client (namedClients curState M.! s)
           modifyMVar_ state $ \serverState -> return $
             serverState {games = g : games serverState}
         else do
-          N.sendTextData (connection client) (J.encode ResponseInvalid)
+          N.sendTextData (connection client) (J.encode ResponseInvalidGame)
           clientLoop state client
     Just (RequestState x1 y1 x2 y2) -> case playingIn curState client of
       Just g -> do
