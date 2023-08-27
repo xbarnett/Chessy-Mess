@@ -26,6 +26,7 @@ dependencies:
 - websockets
 - aeson
 - bytestring
+- utf8-string
 
 ghc-options:
 - -Wall

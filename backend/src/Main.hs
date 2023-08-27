@@ -13,6 +13,7 @@ import qualified Data.Text.Lazy.Encoding as T
 import GHC.Generics
 import qualified Network.WebSockets as N
 import qualified Network.WebSockets.Connection as N
+import qualified Data.ByteString.Lazy.UTF8 as BSU
 
 data PieceType = Pawn | Rook | Knight | Bishop | Queen | King
   deriving (Generic, Show, Eq)
@@ -242,11 +243,40 @@ data Client = Client {
 
 data Game = Game {
   red :: Client,
-  redTime :: Int,
+  --redTime :: Int,
   blue :: Client,
-  blueTime :: Int,
+  --blueTime :: Int,
   gameState :: State
 }
+
+getGame :: Client -> Client -> IO Game
+getGame red blue = do
+  return Game {
+    red = red,
+    blue = blue,
+    gameState = initialState
+  }
+
+playingAsInGame :: String -> Game -> Maybe Player
+playingAsInGame s g = if (clientName (red g) == Just s) then Just Red else
+  if (clientName (blue g) == Just s) then Just Blue else Nothing
+
+combineGameRes :: Maybe Player -> Maybe Player -> Maybe Player
+combineGameRes (Just p) _ = Just p
+combineGameRes _ q = q
+
+playingAs :: ServerState -> String -> Maybe Player
+playingAs state string = foldr combineGameRes Nothing
+  (map (playingAsInGame string) (games state))
+
+playingInGame :: Client -> Game -> Bool
+playingInGame c g = clientName (red g) == clientName c
+  || clientName (blue g) == clientName c
+
+playingIn :: ServerState -> Client -> Maybe Game
+playingIn state c = case filter (playingInGame c) (games state) of
+  [] -> Nothing
+  (g : _) -> Just g
 
 data ServerState = ServerState {
   namedClients :: M.Map String Client,
@@ -269,7 +299,7 @@ data Request = RequestMove Move | RequestName String |
 } deriving (Generic, Show)
 
 data Response = ResponseHello String [String] | ResponseInvalid |
-  ResponseInvalidName |
+  ResponseInvalidName | ResponseInvalidGame |
   ResponseAttacking [(Integer, Integer)] | ResponseState {
   player :: Player,
   xdim :: Integer,
@@ -314,6 +344,27 @@ clientLoop state client = do
         clientLoop state newClient
       else do
         N.sendTextData (connection client) (J.encode ResponseInvalidName)
+        clientLoop state client
+    Just (RequestStartGame s) -> case clientName client of
+      Nothing -> do
+        N.sendTextData (connection client) (J.encode ResponseInvalidGame)
+        clientLoop state client
+      Just name ->
+        if s /= name && elem s (allNames curState) &&
+            playingAs curState s == Nothing then do
+          g <- getGame client (namedClients curState M.! s)
+          modifyMVar_ state $ \serverState -> return $
+            serverState {games = g : games serverState}
+        else do
+          N.sendTextData (connection client) (J.encode ResponseInvalidGame)
+          clientLoop state client
+    Just (RequestState x1 y1 x2 y2) -> case playingIn curState client of
+      Just g -> do
+        return ()
+        let r = J.encode (getRect (gameState g) (x1, y1) (x2, y2))
+        N.sendTextData (connection client) r
+      Nothing -> do
+        N.sendTextData (connection client) (J.encode ResponseInvalid)
         clientLoop state client
     Just _ -> do
       N.sendTextData (connection client) (J.encode ResponseInvalid)
