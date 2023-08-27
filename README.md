@@ -6,13 +6,14 @@ The frontend is written in Flutter/Dart and the backend is written in Haskell.
 Have fun!
 
 Advice:
+- Do not use your smartphone to connect to the game.
 - Only use HTTP to connect to the game.
 - Use ``w``/``a``/``s``/``d`` or the arrow keys to navigate.
 - Use ``i``/``o`` to zoom in/out.
 - Physically click the "enter" button, or your input will silently be ignored.
 - Do not use the same username twice, or it will silently be ignored.
 - It is dishonourable to move your opponent's pieces.
-- You lost The Game.
+- You have lost The Game.
 
 **Link**: [here](http://chessymess.barnett.au).
 
