@@ -299,7 +299,7 @@ data Request = RequestMove Move | RequestName String |
 } deriving (Generic, Show)
 
 data Response = ResponseHello String [String] | ResponseInvalid |
-  ResponseInvalidName | ResponseInvalidGame |
+  ResponseInvalidName | ResponseInvalidGame | ResponseValidGame |
   ResponseAttacking [(Integer, Integer)] | ResponseState {
   player :: Player,
   xdim :: Integer,
@@ -353,21 +353,19 @@ clientLoop state client = do
         if s /= name && elem s (allNames curState) &&
             playingAs curState s == Nothing then do
           g <- getGame client (namedClients curState M.! s)
-          putStrLn "CCC"
           modifyMVar_ state $ \serverState -> return $
             serverState {games = g : games serverState}
+          N.sendTextData (connection client) (J.encode ResponseValidGame)
         else do
           N.sendTextData (connection client) (J.encode ResponseInvalidGame)
         clientLoop state client
     Just (RequestState x1 y1 x2 y2) -> case playingIn curState client of
       Just g -> do
-        putStrLn "AAA"
         N.sendTextData (connection client)
           (J.encode (getRect (gameState g) (x1, y1) (x2, y2)))
         clientLoop state client
       Nothing -> do
         N.sendTextData (connection client) (J.encode ResponseInvalid)
-        putStrLn "BBB"
         clientLoop state client
     Just _ -> do
       N.sendTextData (connection client) (J.encode ResponseInvalid)
