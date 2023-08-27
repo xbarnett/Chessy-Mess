@@ -358,7 +358,7 @@ clientLoop state client = do
         clientLoop state client
     Just (RequestStartGame s) -> case clientName client of
       Nothing -> do
-          putStrLn "DEBUG 2"
+        putStrLn "DEBUG 2"
         N.sendTextData (connection client) (J.encode ResponseInvalidGame)
         clientLoop state client
       Just name -> do
