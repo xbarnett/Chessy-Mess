@@ -294,9 +294,15 @@ data ServerState = ServerState {
 }
 
 allNames :: ServerState -> [String]
-allNames state = concatMap (fromName . clientName) (namedClients state) where
+allNames state = filter p
+    (concatMap (fromName . clientName) (namedClients state)) where
   fromName (Just s) = [s]
   fromName Nothing = []
+  p name = case M.lookup name (namedClients state) of
+    Nothing -> False
+    Just c -> case playingIn state c of
+      Nothing -> True
+      _ -> False
 
 data Request = RequestMove Move | RequestName String |
   RequestAttacking (Integer, Integer) (Integer, Integer) (Integer, Integer) |
