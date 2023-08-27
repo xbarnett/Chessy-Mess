@@ -412,10 +412,13 @@ clientLoop state client = do
               print (blue g)
         _ -> return ()
       clientLoop state client
-
---case makeMove state move of
-  --    Nothing -> handleClient c state
-    --  Just state2 -> handleClient c state2
+    Just (RequestAttacking p p1 p2) -> do
+      case (playingIn curState client,playingAs curState (clientName client)) of
+        (Just g, Just player) -> do
+          N.sendTextData (connection client)
+            (J.encode (listAttacking (gameState g) p p1 p2))
+        _ -> return ()
+      clientLoop state client
     Just _ -> do
       N.sendTextData (connection client) (J.encode ResponseInvalid)
       clientLoop state client
