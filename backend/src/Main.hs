@@ -368,7 +368,6 @@ clientLoop state client = do
         clientLoop state client
     Just (RequestStartGame s) -> case clientName client of
       Nothing -> do
-        putStrLn "DEBUG 2"
         N.sendTextData (connection client) (J.encode ResponseInvalidGame)
         clientLoop state client
       Just name -> do
@@ -383,7 +382,6 @@ clientLoop state client = do
           N.sendTextData (connection (namedClients curState M.! s))
             (J.encode ResponseValidGame)
         else do
-          putStrLn "DEBUG 1"
           N.sendTextData (connection client) (J.encode ResponseInvalidGame)
         clientLoop state client
     Just (RequestState x1 y1 x2 y2) -> case playingIn curState client of
@@ -406,18 +404,16 @@ clientLoop state client = do
                  }
               N.sendTextData (connection (otherClient g p))
                 (J.encode ResponseValidGame)
-            _ -> do
-              putStrLn "horror!"
-              print (red g)
-              print (blue g)
+            _ -> return ()
         _ -> return ()
       clientLoop state client
     Just (RequestAttacking p p1 p2) -> do
       case (playingIn curState client,playingAs curState (clientName client)) of
         (Just g, Just player) -> do
+          putStrLn "DEBUG Z"
           N.sendTextData (connection client)
             (J.encode (listAttacking (gameState g) p p1 p2))
-        _ -> return ()
+        _ -> putStrLn "DEBUG Y"
       clientLoop state client
     Just _ -> do
       N.sendTextData (connection client) (J.encode ResponseInvalid)
