@@ -350,9 +350,6 @@ clientLoop state client = do
         N.sendTextData (connection client) (J.encode ResponseInvalidGame)
         clientLoop state client
       Just name -> do
-        print(s /= name)
-        print(elem s (allNames curState))
-        print(playingAs curState s == Nothing)
         if s /= name && elem s (allNames curState) &&
             playingAs curState s == Nothing then do
           g <- getGame client (namedClients curState M.! s)
@@ -364,9 +361,11 @@ clientLoop state client = do
     Just (RequestState x1 y1 x2 y2) -> case playingIn curState client of
       Just g -> do
         let r = J.encode (getRect (gameState g) (x1, y1) (x2, y2))
+        putStrLn "AAA"
         N.sendTextData (connection client) r
       Nothing -> do
         N.sendTextData (connection client) (J.encode ResponseInvalid)
+        putStrLn "BBB"
         clientLoop state client
     Just _ -> do
       N.sendTextData (connection client) (J.encode ResponseInvalid)
