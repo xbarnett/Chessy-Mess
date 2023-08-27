@@ -299,7 +299,7 @@ allNames state = filter p
   fromName (Just s) = [s]
   fromName Nothing = []
   p name = case M.lookup name (namedClients state) of
-    Nothing -> False
+    Nothing -> True
     Just c -> case playingIn state c of
       Nothing -> True
       _ -> False
