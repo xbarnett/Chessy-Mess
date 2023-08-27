@@ -332,6 +332,10 @@ nextGames p1 p2 next gs = map f gs where
     (p1, p2) -> g {gameState = next}
     _ -> g
 
+otherClient :: Game -> Player -> Client
+otherClient g Red = blue g
+otherClient g Blue = red g
+
 clientLoop :: MVar ServerState -> Client -> IO ()
 clientLoop state client = do
   putStrLn "loopin"
@@ -392,6 +396,8 @@ clientLoop state client = do
                 serverState {
                   games = nextGames n1 n2 state2 (games curState)
                  }
+              N.sendTextData (connection (otherClient g p))
+                (J.encode ResponseValidGame)
             _ -> do
               putStrLn "horror!"
               print (red g)
